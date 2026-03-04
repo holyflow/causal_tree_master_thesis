@@ -11,11 +11,11 @@ class CausalTreeEvaluation:
         self.inference = False
         self.criterion = 'mse'
         self.honest = False
-        self.max_depth = list(range(1,11))
+        self.max_depth = list(range(1, 11))
         self.min_samples_split = 2
         self.min_samples_leaf = 1
         self.max_samples = 1.0
-        self.min_balancedness_tol = 0.0
+        self.min_balancedness_tol = 0.5
 
     def simulate_and_evaluate_causal_tree_adaptive(self, X_sim:np.ndarray, Y_sim:np.ndarray, T_sim:np.ndarray, treatment_effect:np.ndarray, random_state: int) -> pd.DataFrame:
         x_sim_mean = X_sim.mean().item()
@@ -32,6 +32,7 @@ class CausalTreeEvaluation:
                 random_state=random_state,
                 max_depth=depth,
                 min_samples_leaf=self.min_samples_leaf,
+                min_samples_split=self.min_samples_split,
                 max_samples=self.max_samples,
                 min_balancedness_tol=self.min_balancedness_tol,
             )
@@ -53,6 +54,11 @@ class CausalTreeEvaluation:
                 n_t = np.sum(t_leaf == 1)
                 n_c = np.sum(t_leaf == 0)
 
+                true_mean_te = te_leaf.mean()
+
+                abs_dist_from_center = np.mean(np.abs(x_leaf - x_sim_mean))
+                rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf - x_sim_mean)))
+
                 if n_t > 1 and n_c > 1:
                     mu_t = y_leaf[t_leaf == 1].mean()
                     mu_c = y_leaf[t_leaf == 0].mean()
@@ -66,22 +72,15 @@ class CausalTreeEvaluation:
                     ci_lower = cate_est - 1.96 * se_cate
                     ci_upper = cate_est + 1.96 * se_cate
 
-                    true_mean_te = te_leaf.mean()
                     coverage = int(ci_lower <= true_mean_te <= ci_upper)
-
-                    abs_dist_from_center = np.mean(np.abs(x_leaf - x_sim_mean))
-                    rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf - x_sim_mean)))
 
                 else:
                     cate_est = np.nan
                     se_cate = np.nan
                     ci_lower = np.nan
                     ci_upper = np.nan
-                    true_mean_te = np.nan
                     coverage = np.nan
-                    abs_dist_from_center = np.nan
-                    rms_dist_from_center = np.nan
-
+                 
                 results.append({
                     'leaf_id': leaf_id,
                     'depth': depth,
@@ -120,6 +119,9 @@ class CausalTreeEvaluation:
                 random_state=random_state,
                 max_depth=depth,
                 min_samples_leaf=self.min_samples_leaf,
+                min_samples_split=self.min_samples_split,
+                max_samples=self.max_samples,
+                min_balancedness_tol=self.min_balancedness_tol,
             )
 
             causal_tree.fit(X=X_struct, T=t_struct, y=y_struct)
@@ -141,6 +143,11 @@ class CausalTreeEvaluation:
                 n_t = np.sum(t_leaf_est == 1)
                 n_c = np.sum(t_leaf_est == 0)
 
+                true_mean_te = te_leaf_est.mean()
+
+                abs_dist_from_center = np.mean(np.abs(x_leaf_struct - x_struct_mean))
+                rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf_struct - x_struct_mean)))
+
                 if n_t > 1 and n_c > 1:
                     mu_t = y_leaf_est[t_leaf_est == 1].mean()
                     mu_c = y_leaf_est[t_leaf_est == 0].mean()
@@ -154,21 +161,14 @@ class CausalTreeEvaluation:
                     ci_lower = cate_est - 1.96 * se_cate
                     ci_upper = cate_est + 1.96 * se_cate
 
-                    true_mean_te = te_leaf_est.mean()
                     coverage = int(ci_lower <= true_mean_te <= ci_upper)
-
-                    abs_dist_from_center = np.mean(np.abs(x_leaf_struct - x_struct_mean))
-                    rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf_struct - x_struct_mean)))
 
                 else:
                     cate_est = np.nan
                     se_cate = np.nan
                     ci_lower = np.nan
                     ci_upper = np.nan
-                    true_mean_te = np.nan
                     coverage = np.nan
-                    abs_dist_from_center = np.nan
-                    rms_dist_from_center = np.nan
 
                 results.append({
                     'leaf_id': leaf_id,
