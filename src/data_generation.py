@@ -11,7 +11,7 @@ class constant_dgp:
         sigma0 (float): Standard deviation of noise for control potential outcome.
         sigma1 (float): Standard deviation of noise for treated potential outcome.
     """
-    def __init__(self, p=1, xi=0.5, c0=1.0, c1=3.0, sigma0=1.0, sigma1=1.0):
+    def __init__(self, p=1, xi=0.5, c0=10, c1=30, sigma0=100, sigma1=100):
         self.p = p
         self.xi = xi
         self.c0 = c0
@@ -60,13 +60,16 @@ class constant_dgp:
                 mu_x = 2 * (X[:, 0] ** 2)
             else:
                 mu_x = 2 * (X[:, 0] ** 2) + np.sin(X[:, 1])
+        
+        elif outcome_mechanism == "non":
+            mu_x = 0
 
         else:
             raise ValueError("Unknown outcome mechanism specified.")
 
         eps0 = rng.normal(0.0, self.sigma0, size=n_obs)  
         eps1 = rng.normal(0.0, self.sigma1, size=n_obs)
-        y0 = self.c0 + mu_x + eps0
+        y0 = self.c0 + mu_x + eps0  
         y1 = self.c1 + mu_x + eps1
         y = T * y1 + (1 - T) * y0
 

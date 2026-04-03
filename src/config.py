@@ -1,0 +1,2 @@
+SAMPLE_SIZE = 25000
+

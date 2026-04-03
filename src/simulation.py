@@ -2,11 +2,10 @@ import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
 from src.data_generation import constant_dgp, heterogeneous_dgp
-from src.estimation import CausalTreeEvaluation
+from src.causalml_estimation import CausalTreeEvaluation
 
 class SimulationRunner:
     """Class to run simulations for a given DGP and estimator in parallel."""
-
     
     def __init__(
         self, 
@@ -17,6 +16,10 @@ class SimulationRunner:
         self.estimator = estimator
 
     def _run_single_simulation(self, sim_idx: int, seed: int, n_obs: int, dgp_args: dict, splitting: str) -> pd.DataFrame:
+
+        if (sim_idx + 1) % 2000 == 0:
+            print(f"Completed {sim_idx + 1} simulations...", flush=True)
+        
         sim_seed = seed + sim_idx
         
         X_sim, Y_sim, T_sim, treatment_effect = self.dgp.sample(
@@ -40,6 +43,7 @@ class SimulationRunner:
         
         sim_result['simulation'] = sim_idx
         sim_result['splitting_type'] = splitting 
+
         return sim_result
 
     def run_simulation(
@@ -47,9 +51,9 @@ class SimulationRunner:
         n_simulations: int, 
         n_obs: int, 
         seed: int, 
+        splitting: str, 
         distribution: str, 
         outcome_mechanism: str,
-        splitting: str, 
         treatment_mechanism: str = None,
         n_jobs: int = -1
     ) -> pd.DataFrame:

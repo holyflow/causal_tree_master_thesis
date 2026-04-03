@@ -1,7 +1,7 @@
 from itertools import product
 from dataclasses import dataclass
 from src.data_generation import constant_dgp, heterogeneous_dgp
-from src.estimation import CausalTreeEvaluation
+from src.causalml_estimation import CausalTreeEvaluation
 
 @dataclass(frozen=True)
 class SimulationScenario:
@@ -17,7 +17,7 @@ class SimulationScenario:
     first_seed: int = 1
 
 dgps = [
-    (constant_dgp, 'uniform', 'linear'),
+    (constant_dgp, 'uniform', 'non'),
     # (constant_dgp, 'uniform', 'nonlinear'),
     # (heterogeneous_dgp, 'uniform', 'linear', 'first_feature'),
     # (heterogeneous_dgp, 'normal', 'linear', 'positive_features'),
@@ -29,7 +29,7 @@ estimators = [CausalTreeEvaluation]
 
 sample_sizes = [1000]
 
-splitting_types = ["adaptive"]
+splitting_types = ["adaptive", "honest"]
 
 scenarios = []
 
@@ -37,11 +37,11 @@ for dgp_tuple, estimator_class, size, split in product(dgps, estimators, sample_
     
     dgp_class = dgp_tuple[0]
     dist = dgp_tuple[1]
-    outcome = dgp_tuple[2]
+    outcome_mech = dgp_tuple[2]
     
     dgp_params = {
         "distribution": dist, 
-        "outcome_mechanism": outcome
+        "outcome_mechanism":outcome_mech
     }
     
     treatment = ""
@@ -50,7 +50,7 @@ for dgp_tuple, estimator_class, size, split in product(dgps, estimators, sample_
         dgp_params["treatment_mechanism"] = treatment
 
     treatment_str = f"_{treatment}" if treatment else ""
-    scenario_name = f"{dgp_class.__name__}_{outcome}{treatment_str}_{split}_{size}"
+    scenario_name = f"{dgp_class.__name__}_{treatment_str}_{split}_{size}"
 
     scenario = SimulationScenario(
         name=scenario_name,

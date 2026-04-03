@@ -11,14 +11,16 @@ class CausalTreeEvaluation:
         self.inference = False
         self.criterion = 'mse'
         self.honest = False
-        self.max_depth = list(range(1, 11))
-        self.min_samples_split = 2
-        self.min_samples_leaf = 1
+        self.max_depth = list(range(1,11))
+        self.min_samples_split = 8
+        self.min_samples_leaf = 4
         self.max_samples = 1.0
         self.min_balancedness_tol = 0.5
+        self.min_var_fraction_leaf = None
 
     def simulate_and_evaluate_causal_tree_adaptive(self, X_sim:np.ndarray, Y_sim:np.ndarray, T_sim:np.ndarray, treatment_effect:np.ndarray, random_state: int) -> pd.DataFrame:
         x_sim_mean = X_sim.mean().item()
+        T_sim_mean = T_sim.mean().item()
 
         results = []
 
@@ -35,6 +37,7 @@ class CausalTreeEvaluation:
                 min_samples_split=self.min_samples_split,
                 max_samples=self.max_samples,
                 min_balancedness_tol=self.min_balancedness_tol,
+                min_var_fraction_leaf=self.min_var_fraction_leaf,
             )
 
             causal_tree.fit(X=X_sim, T=T_sim, y=Y_sim)
@@ -56,8 +59,8 @@ class CausalTreeEvaluation:
 
                 true_mean_te = te_leaf.mean()
 
-                abs_dist_from_center = np.mean(np.abs(x_leaf - x_sim_mean))
-                rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf - x_sim_mean)))
+                abs_dist_from_center = np.mean(np.abs(x_leaf - 50))
+                rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf - 50)))
 
                 if n_t > 1 and n_c > 1:
                     mu_t = y_leaf[t_leaf == 1].mean()
@@ -74,6 +77,17 @@ class CausalTreeEvaluation:
 
                     coverage = int(ci_lower <= true_mean_te <= ci_upper)
 
+                elif n_t >= 1 and n_c >= 1:
+                    mu_t = y_leaf[t_leaf == 1].mean()
+                    mu_c = y_leaf[t_leaf == 0].mean()
+                    
+                    cate_est = mu_t - mu_c
+
+                    se_cate = np.nan
+                    ci_lower = np.nan
+                    ci_upper = np.nan
+                    coverage = np.nan
+
                 else:
                     cate_est = np.nan
                     se_cate = np.nan
@@ -88,12 +102,14 @@ class CausalTreeEvaluation:
                     'standard_error': se_cate,
                     'n_samples': len(y_leaf),
                     'n_treated': n_t,
+                    'n_control': n_c,
                     'ci_lower': ci_lower,
                     'ci_upper': ci_upper,
                     'true_treatment_effect': true_mean_te,
                     'coverage': coverage,
                     'x_leaf_mean': x_leaf.mean().item(),
                     'x_struct_mean': x_sim_mean,
+                    't_struct_mean': T_sim_mean,
                     'abs_dist_from_center': abs_dist_from_center,
                     'rms_dist_from_center': rms_dist_from_center
                 })
@@ -102,7 +118,7 @@ class CausalTreeEvaluation:
 
     def simulate_and_evaluate_causal_tree_honest(self, X_sim:np.ndarray, Y_sim:np.ndarray, T_sim:np.ndarray, treatment_effect:np.ndarray, random_state: int) -> pd.DataFrame:
         X_struct, X_est, y_struct, y_est, t_struct, t_est, treatment_effect_struct, treatment_effect_est = train_test_split(
-            X_sim, Y_sim, T_sim, treatment_effect, test_size=0.5, random_state=random_state
+            X_sim, Y_sim, T_sim, treatment_ effect, test_size=0.5, random_state=random_state, stratify=T_sim
         )
 
         x_struct_mean = X_struct.mean().item()
@@ -122,6 +138,7 @@ class CausalTreeEvaluation:
                 min_samples_split=self.min_samples_split,
                 max_samples=self.max_samples,
                 min_balancedness_tol=self.min_balancedness_tol,
+                min_var_fraction_leaf=self.min_var_fraction_leaf
             )
 
             causal_tree.fit(X=X_struct, T=t_struct, y=y_struct)
@@ -145,8 +162,8 @@ class CausalTreeEvaluation:
 
                 true_mean_te = te_leaf_est.mean()
 
-                abs_dist_from_center = np.mean(np.abs(x_leaf_struct - x_struct_mean))
-                rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf_struct - x_struct_mean)))
+                abs_dist_from_center = np.mean(np.abs(x_leaf_struct - 50))
+                rms_dist_from_center = np.sqrt(np.mean(np.square(x_leaf_struct - 50)))
 
                 if n_t > 1 and n_c > 1:
                     mu_t = y_leaf_est[t_leaf_est == 1].mean()
@@ -163,6 +180,17 @@ class CausalTreeEvaluation:
 
                     coverage = int(ci_lower <= true_mean_te <= ci_upper)
 
+                elif n_t >= 1 and n_c >= 1:
+                    mu_t = y_leaf_est[t_leaf_est == 1].mean()
+                    mu_c = y_leaf_est[t_leaf_est == 0].mean()
+                    
+                    cate_est = mu_t - mu_c
+
+                    se_cate = np.nan
+                    ci_lower = np.nan
+                    ci_upper = np.nan
+                    coverage = np.nan
+
                 else:
                     cate_est = np.nan
                     se_cate = np.nan
@@ -177,6 +205,7 @@ class CausalTreeEvaluation:
                     'standard_error': se_cate,
                     'n_samples': len(y_leaf_est),
                     'n_treated': n_t,
+                    'n_control': n_c,
                     'ci_lower': ci_lower,
                     'ci_upper': ci_upper,
                     'true_treatment_effect': true_mean_te,
