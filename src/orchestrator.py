@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-from src.simulation import SimulationRunner
-from src.scenarios import SimulationScenario, scenarios 
+from .simulation import SimulationRunner
+from .scenarios import SimulationScenario
 
 class SimulationOrchestrator:
     """Simple simulation orchestration class."""
@@ -15,25 +15,23 @@ class SimulationOrchestrator:
         for scenario in self.scenarios: 
             print(f"Running scenario: {scenario.name}")
 
-            dgp_instance = scenario.dgp() 
+            estimator_instance = scenario.estimator(sample_size=scenario.sample_size)
 
-            estimator_instance = scenario.estimator()
+            dgp_instance = scenario.dgp()
 
             splitting_instance = scenario.splitting
 
-            runner = SimulationRunner(dgp=dgp_instance, estimator=estimator_instance)
+            runner = SimulationRunner(estimator=estimator_instance,dgp=dgp_instance)
 
             results = runner.run_simulation(
                 n_simulations=scenario.n_simulations, 
                 n_obs=scenario.sample_size, 
                 seed=scenario.first_seed,
                 splitting=splitting_instance,
-                **scenario.dgp_params 
             )
 
             results['scenario'] = scenario.name
 
-            # Downcast to 32-bit before appending to the list
             float_cols = results.select_dtypes(include=['float64']).columns
             results[float_cols] = results[float_cols].astype(np.float32)
             

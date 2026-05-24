@@ -1,21 +1,19 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from causalml.inference.tree import CausalTreeRegressor
+from causalml.inference.tree import CausalTreeRegressor # type: ignore
+from .config import TREE_DEPTHS
+
 
 class CausalTreeEvaluation:
     """Data class to store results from a Causal Tree simulation."""
-    def __init__(self) -> None:
-        self.n_estimators = 1
+    def __init__(self, sample_size: int) -> None:
         self.criterion = 'causal_mse'
-        # self.max_depth =list(range(1,11))
-        self.max_depth = list(range(1,5)) + [6] + [8] + [10] + [15] + [20] + [25]
+        self.max_depth = TREE_DEPTHS[sample_size]
         self.min_samples_split = 8
         self.min_samples_leaf = 4
         self.min_group_samples = 0
         self.control_name = 0
-        self.max_samples = None
-        self.bootstrap = False
         self.groups_penalty = 0.0
         self.min_treated_leaf = 2
         self.min_control_leaf = 2

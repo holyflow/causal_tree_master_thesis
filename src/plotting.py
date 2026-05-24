@@ -2,7 +2,10 @@
 Plotting functions for simulation results.
 
 This module contains the following functions:
-    - plot_coverage_adaptive
+    - plot_coverage
+    - plot_adj_se_treatment_dev
+    - plot_leaf_frequency
+    - plot_n_samples_frequency
 """
 
 import pandas as pd
@@ -10,18 +13,14 @@ import numpy as np
 from pathlib import Path
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from src.config import SAMPLE_SIZE
+from .config import TREE_DEPTHS, SPLITTING_TYPES, PLOTS_DIR
 
-pd.options.plotting.backend = "plotly"
-
-PLOT_DIR = Path(r"C:\Users\flori\OneDrive\master_thesis\plots")
-
-splitting_types = ["adaptive","honest"]
-splitting_types_refined = ["adaptive", "honest_nan", "honest_0"]
-target_depths = list(range(1,5)) + [6] + [8] + [10] + [15] + [20] + [35]
+splitting_types_refined = ["adaptive", "honest_nan", "honest_0"]  
 
 
-def plot_coverage(sim_results: pd.DataFrame, x_type: str):
+def plot_coverage(sim_results: pd.DataFrame, sample_size: int, x_type: str):
+
+    tree_depth = TREE_DEPTHS[sample_size]
 
     for splitting_type in splitting_types_refined:
         parts = splitting_type.split('_')
@@ -29,11 +28,11 @@ def plot_coverage(sim_results: pd.DataFrame, x_type: str):
         end_type = parts[1] if len(parts) > 1 else ""
 
         if end_type in ["", "nan"]:
-            results_df = sim_results[sim_results['splitting_type'] == base_type]
+            results_df = sim_results[sim_results['splitting_type'] == base_type].copy()
 
         elif end_type == "0":
-            results_df = sim_results[sim_results['splitting_type'] == base_type]
-            results_df['coverage'] = results_df['coverage'].fillna(0)
+            results_df = sim_results[sim_results['splitting_type'] == base_type].copy()
+            results_df['coverage'] = results_df['coverage'].fillna(0)   
 
         if x_type == "whole_support":
             bins = 200
@@ -70,12 +69,13 @@ def plot_coverage(sim_results: pd.DataFrame, x_type: str):
 
         cover_plot = make_subplots(
             rows=5, cols=2, 
-            subplot_titles=[f'Depth = {d}' for d in target_depths],
-            vertical_spacing=0.12,
-            horizontal_spacing=0.08
+            subplot_titles=[f'Depth = {d}' for d in tree_depth],
+            vertical_spacing=0.075,
+            horizontal_spacing=0.05,
+            shared_yaxes="rows",
         )
 
-        for i, depth in enumerate(target_depths):
+        for i, depth in enumerate(tree_depth):
             depth_data = plot_df[plot_df['depth'] == depth]
 
             row = (i // 2) + 1
@@ -91,11 +91,20 @@ def plot_coverage(sim_results: pd.DataFrame, x_type: str):
                 row=row, col=col
             )
 
-            cover_plot.add_hline(
-                y=depth_means[depth],
-                line_color="green",
-                line_dash="solid",
-                row=row, col=col,
+            x_min = depth_data['bin_center'].min()
+            x_max = depth_data['bin_center'].max()
+
+            cover_plot.add_trace(
+                go.Scatter(
+                    x=[x_min, x_max],
+                    y=[depth_means[depth], depth_means[depth]],
+                    mode='lines',
+                    name='mean coverage',
+                    line=dict(color='green', dash='solid'),
+                    legendgroup='mean_line',
+                    showlegend=(i == 0)
+                ),
+                row=row, col=col
             )
 
             cover_plot.add_annotation(
@@ -128,20 +137,31 @@ def plot_coverage(sim_results: pd.DataFrame, x_type: str):
                     except (ValueError, IndexError):
                         pass
 
-            if x_type == "whole_support":
-                x_text = "leaf mean"
-            elif x_type == "abs_deviation":
-                x_text = "extreme absolute deviations"
+        cover_plot.update_xaxes(title_text="number of samples per leaf", row=5)
 
-            cover_plot.update_xaxes(title_text=x_text, row=row, col=col)
+        cover_plot.update_layout(
+            legend=dict(
+                    orientation="v",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                    )
+        )
+
+        if x_type == "whole_support":
+            x_text = "leaf mean"
+        elif x_type == "abs_deviation":
+            x_text = "extreme absolute deviations"
+
 
         if splitting_type == "adaptive":
             cover_plot.update_layout(
                 height=1500,
                 width=1000,
-                title_text=f"Coverage for <i>n</i> = {SAMPLE_SIZE} and adaptive estimation by {x_text} (bin width = {bin_width})"
-            )
-
+                title_text=f"Coverage for <i>n</i> = {sample_size} and adaptive estimation by {x_text} (bin width = {bin_width})",
+        )
+        
         elif splitting_type == "honest_nan":
             # Adapt y-axes based on x_type
             if x_type == "whole_support":
@@ -150,7 +170,7 @@ def plot_coverage(sim_results: pd.DataFrame, x_type: str):
                     range=[0.8, 1]
                 )
             elif x_type == "abs_deviation":
-                if SAMPLE_SIZE == 5000:
+                if sample_size == 5000:
                     cover_plot.update_yaxes(
                         tickvals=np.linspace(0.3, 1, 8),
                         range=[0.3, 1]
@@ -166,66 +186,71 @@ def plot_coverage(sim_results: pd.DataFrame, x_type: str):
                 cover_plot.update_layout(
                     height=1500,
                     width=1000,
-                    title_text=f"Coverage for <i>n</i> = {SAMPLE_SIZE} and honest estimation by {x_text}<br>with coverage of NaN leaves as NaN (bin width = {bin_width})"
+                    title_text=f"Coverage for <i>n</i> = {sample_size} and honest estimation by {x_text}<br>with coverage of NaN leaves as NaN (bin width = {bin_width})"
                 )
 
             elif x_type == "abs_deviation":
                 cover_plot.update_layout(
                     height=1500,
                     width=1000,
-                    title_text=f"Coverage for <i>n</i> = {SAMPLE_SIZE} and honest estimation by {x_text}<br>with coverage of NaN leaves as NaN (bin width = {bin_width})"
+                    title_text=f"Coverage for <i>n</i> = {sample_size} and honest estimation by {x_text}<br>with coverage of NaN leaves as NaN (bin width = {bin_width})"
                 )
 
         elif splitting_type == "honest_0":
             cover_plot.update_yaxes(
-                tickvals=np.linspace(0.2, 1, 9),
-                range=[0.2, 1]
+                tickvals=np.linspace(0, 1, 11),
+                range=[0, 1]
             )
 
             if x_type == "whole_support":
                 cover_plot.update_layout(
                     height=1500,
                     width=1000,
-                    title_text=f"Coverage for <i>n</i> = {SAMPLE_SIZE} and honest estimation by {x_text}<br>with coverage of NaN leaves as 0 (bin width = {bin_width})"
+                    title_text=f"Coverage for <i>n</i> = {sample_size} and honest estimation by {x_text}<br>with coverage of NaN leaves as 0 (bin width = {bin_width})"
                 )
 
             elif x_type == "abs_deviation":
                 cover_plot.update_layout(
                     height=1500,
                     width=1000,
-                    title_text=f"Coverage for <i>n</i> = {SAMPLE_SIZE} and honest estimation by {x_text}<br>with coverage of NaN leaves as 0 (bin width = {bin_width})"
+                    title_text=f"Coverage for <i>n</i> = {sample_size} and honest estimation by {x_text}<br>with coverage of NaN leaves as 0 (bin width = {bin_width})"
                 )
 
-
-        file_path = PLOT_DIR / f"plot_support_{SAMPLE_SIZE}_sim_25000_1_10_{splitting_type}_{x_type}.html"
+        file_path = PLOTS_DIR / f"plot_support_{sample_size}_sim_25000_1_10_{splitting_type}_{x_type}.html"
         cover_plot.write_html(file_path)
+
         cover_plot.show()
 
 
-def plot_adj_se_treatment_dev(sim_results:pd.DataFrame, x_type: str):
+def plot_adj_se_treatment_dev(sim_results:pd.DataFrame, sample_size: int, x_type: str):
 
-    for splitting_type in splitting_types:
+    tree_depth = TREE_DEPTHS[sample_size]
 
-        results_df = sim_results[sim_results['splitting_type'] == splitting_type]
+    for splitting_type in SPLITTING_TYPES:
+
+        results_df = sim_results[sim_results['splitting_type'] == splitting_type].copy()
 
         if x_type == "whole_support":
             bins = 200
             results_df["bin_interval"] = pd.cut(results_df['x_leaf_mean'], bins=bins)
             bin_width = 100 / bins
 
+            depth_mad = results_df.groupby("depth")["abs_cate_deviation"].mean()
+
         elif x_type == "abs_deviation":
             
             if splitting_type == "adaptive":
                 lower_bound = 30
                 bins = 100
-                results_df = results_df[results_df['abs_dist_from_center']>=lower_bound].copy()
-                results_df["bin_interval"] = pd.cut(results_df["abs_dist_from_center"], bins=bins)
             
             elif splitting_type == "honest":
                 lower_bound = 49
                 bins = 50
-                results_df = results_df[results_df['abs_dist_from_center']>=lower_bound].copy()
-                results_df["bin_interval"] = pd.cut(results_df["abs_dist_from_center"], bins=bins)
+
+            results_df = results_df[results_df['abs_dist_from_center']>=lower_bound].copy()
+            results_df["bin_interval"] = pd.cut(results_df["abs_dist_from_center"], bins=bins)
+
+            depth_mad = results_df.groupby("depth")["abs_cate_deviation"].mean()
             
             bin_width = (50 - lower_bound) / bins
 
@@ -237,12 +262,13 @@ def plot_adj_se_treatment_dev(sim_results:pd.DataFrame, x_type: str):
 
         cover_plot = make_subplots(
             rows=5, cols=2, 
-            subplot_titles=[f'Depth = {d}' for d in target_depths],
-            vertical_spacing=0.12,
-            horizontal_spacing=0.08
+            subplot_titles=[f'Depth = {d}' for d in tree_depth],
+            vertical_spacing=0.075,
+            horizontal_spacing=0.05,
+            shared_yaxes="rows",
         )
 
-        for i, depth in enumerate(target_depths):
+        for i, depth in enumerate(tree_depth):
             depth_data = plot_df[plot_df['depth'] == depth]
 
             row = (i // 2) + 1
@@ -276,44 +302,28 @@ def plot_adj_se_treatment_dev(sim_results:pd.DataFrame, x_type: str):
                 row=row, col=col
             )
 
-            if x_type == "whole_support":
-
-                if splitting_type == "adaptive":
-                    try:
-                        if 5 <= depth <= 26:
-                            cover_plot.update_yaxes(
-                                tickvals = np.linspace(75,150,4),
-                                range=[70, 150],
-                                row=row, col=col
-                            )
-                    except (ValueError, IndexError):
-                        pass
-
-                    else:
-                        cover_plot.update_yaxes(
-                            tickvals=np.linspace(0, 175, 8),
-                            range=[0, 180],
-                            row=row, col=col
-                        )
-
-                elif splitting_type == "honest":
-                    cover_plot.update_yaxes(
-                        tickvals=np.linspace(0, 150, 7),
-                        range=[0, 160],
-                        row=row, col=col
-                    )
-
-            if x_type == "whole_support":
-                x_text = "leaf mean"
-            elif x_type == "abs_deviation":
-                x_text = "extreme abs. deviations"
+            cover_plot.add_annotation(
+                text = f"mean absolute deviation: {depth_mad[depth]:.3f}",
+                xref = "x domain",
+                yref = "y domain",
+                x = 0.0,
+                y = 1.0,
+                xanchor = "left",
+                yanchor = "top",
+                showarrow = False,
+                font=dict(size=14, color="black"),
+                row=row, col=col
+            )
+        
+        if x_type == "whole_support":
+            x_text = "leaf mean"
+        elif x_type == "abs_deviation":
+            x_text = "extreme abs. deviations"
             
-            cover_plot.update_xaxes(title_text=x_text, row=row, col=col)
+        cover_plot.update_xaxes(title_text=x_text, row=5)
 
-        # Generate the title string dynamically
-        title = f"Absolute CATE estimate deviation vs. 1.96 * standard errror<br>for {splitting_type} estimation by {x_text} (bin width = {bin_width})"
+        title = f"Absolute CATE estimate deviation vs. 1.96 * standard errror and<br>{splitting_type} estimation by {x_text} (bin width = {bin_width}, <i>n</i> = {sample_size})"
 
-        # Apply the layout update once for all conditions
         cover_plot.update_layout(
             height=1500,
             width=1000,
@@ -327,16 +337,17 @@ def plot_adj_se_treatment_dev(sim_results:pd.DataFrame, x_type: str):
             )
         )
 
-        for size in SAMPLE_SIZES:
+        file_path = PLOTS_DIR / f"adj_se_cate_dev_plot_support_{sample_size}_sim_25000_1_10_{splitting_type}_{x_type}.html"
+        cover_plot.write_html(file_path)
 
-            file_path = PLOT_DIR / f"adj_se_cate_dev_plot_support_{size}_sim_25000_1_10_{splitting_type}_{x_type}.html"
-            cover_plot.write_html(file_path)
-            cover_plot.show()
-
+        cover_plot.show()
 
 
 
-def plot_leaf_frequency(sim_results:pd.DataFrame):
+
+def plot_leaf_frequency(sim_results:pd.DataFrame, sample_size: int):
+
+    tree_depth = TREE_DEPTHS[sample_size]
 
     for splitting_type in splitting_types_refined:
 
@@ -344,7 +355,6 @@ def plot_leaf_frequency(sim_results:pd.DataFrame):
         base_type = parts[0]
         end_type = parts[1] if len(parts) > 1 else ""
         
-
         results_df_plot = sim_results[sim_results['splitting_type'] == base_type].copy()
 
         bins = 200
@@ -355,26 +365,27 @@ def plot_leaf_frequency(sim_results:pd.DataFrame):
 
         results_df_plot["bin_center"] = results_df_plot["bin_interval"].apply(lambda x: x.mid)
 
-        leaf_counts = results_df_plot.groupby(["depth", "bin_center"], observed=True).size().reset_index(name='leaf_count')
-
         if end_type in ["", "0"]:
-            avg_splits_per_depth = results_df_plot.groupby(["depth"], observed=True).size().reset_index(name='leaves_count')
-
+            filtered_df = results_df_plot
         elif end_type == "nan":
-            avg_splits_per_depth = results_df_plot[~results_df_plot['coverage'].isna()].groupby(["depth"], observed=True).size().reset_index(name='leaves_count')
+            filtered_df = results_df_plot[~results_df_plot['coverage'].isna()]
+
+        leaf_counts = filtered_df.groupby(["depth", "bin_center"], observed=True).size().reset_index(name='leaf_count')
+
+        avg_splits_per_depth = filtered_df.groupby(["depth"], observed=True).size().reset_index(name='leaves_count')
 
         leaf_counts['total_leaves_per_depth'] = leaf_counts['depth'].map(avg_splits_per_depth.set_index('depth')['leaves_count'])
-
         leaf_counts['leaf_count_share'] = leaf_counts['leaf_count'] / leaf_counts['total_leaves_per_depth']
 
         cover_plot = make_subplots(
             rows=5, cols=2, 
-            subplot_titles=[f'Depth = {d}' for d in target_depths],
-            vertical_spacing=0.12,
-            horizontal_spacing=0.08
+            subplot_titles=[f'Depth = {d}' for d in tree_depth],
+            vertical_spacing=0.075,
+            horizontal_spacing=0.05,
+            shared_yaxes="rows",
         )
 
-        for i, depth in enumerate(target_depths):
+        for i, depth in enumerate(tree_depth):
             depth_data = leaf_counts[leaf_counts['depth'] == depth]
 
             row = (i // 2) + 1
@@ -392,89 +403,137 @@ def plot_leaf_frequency(sim_results:pd.DataFrame):
                 row=row, col=col
             )
 
-            if end_type == "":
-                try:
-                    if 7 <= depth <= 25:
-                        cover_plot.update_yaxes(
-                            tickvals = np.linspace(0,0.03,4),
-                            range=[0,0.03],
-                            row=row, col=col
-                        )
-                except (ValueError, IndexError):
-                    pass
-
-                else:
-                    cover_plot.update_yaxes(
-                        tickvals=np.linspace(0,0.05,6),
-                        range=[0,0.05],
-                        row=row, col=col
-                    )
-
-            elif end_type == "nan":
-                try:
-                    if 7 <= depth <= 25:
-                        cover_plot.update_yaxes(
-                            tickvals = np.linspace(0,0.03,4),
-                            range=[0,0.03],
-                            row=row, col=col
-                        )
-                except(ValueError, IndexError):
-                    pass
-
-                else:
-                    cover_plot.update_yaxes(
-                        tickvals=np.linspace(0,0.05,6),
-                        range=[0,0.05],
-                        row=row, col=col
-                    )
-
-            elif end_type == "0": 
-                try:
-                    if 5 <= depth <= 26:
-                        cover_plot.update_yaxes(
-                            tickvals = np.linspace(0,0.03,4),
-                            range=[0,0.03],
-                            row=row, col=col
-                        )
-                except(ValueError, IndexError):
-                    pass
-                else:
-                    cover_plot.update_yaxes(
-                        tickvals=np.linspace(0,0.04,5),
-                        range=[0,0.04],
-                        row=row, col=col
-                    )
-            cover_plot.update_xaxes(title_text="leaf mean", row=row, col=col)
-                
-        # cover_plot.update_yaxes(
-        #         tickvals=np.linspace(0,1,11), 
-        #         range=[0, 1],
-        # )
-                        
+        cover_plot.update_xaxes(title_text="leaf mean", row=5)
+           
         if end_type == "":           
             cover_plot.update_layout(
                 height=1500,
                 width=1000,
-                title_text=f"Relative frequency distribution of leaf means for adaptive estimation (bin width={bin_width})"
+                title_text=f"Relative frequency distribution of leaf means for <i>n</i> = {sample_size} and adaptive estimation (bin width={bin_width})"
             )
 
         elif end_type == "nan":           
             cover_plot.update_layout(
                 height=1500,
                 width=1000,
-                title_text=f"Relative frequency distribution of leaf means for honest estimation<br>with nan coverages not included (bin width={bin_width})"
+                title_text=f"Relative frequency distribution of leaf means for <i>n</i> = {sample_size}<br>and honest estimation with nan coverages not included (bin width={bin_width})"
             )
 
         elif end_type == "0":           
             cover_plot.update_layout(
                 height=1500,
                 width=1000,
-                title_text=f"Relative frequency distribution of leaf means for honest estimation<br>with nan coverages included (bin width={bin_width})"
+                title_text=f"Relative frequency distribution of leaf means for <i>n</i> = {sample_size}<br>and honest estimation with nan coverages included (bin width={bin_width})"
             )
 
-        for size in SAMPLE_SIZES:
+            html_path = str(PLOTS_DIR / f"plot_{sample_size}_leaf_relative_freqency_{splitting_type}.html")
 
-            file_path = PLOT_DIR / f"plot_{size}_leaf_relative_freqency_{splitting_type}.html"
-            cover_plot.write_html(file_path)
+            cover_plot.write_html(html_path)
+
             cover_plot.show()
+
+
+
+
+def plot_n_samples_frequency(sim_results:pd.DataFrame, sample_size: int):
+
+    tree_depth = TREE_DEPTHS[sample_size]
+
+    for splitting_type in splitting_types_refined:
+
+        parts = splitting_type.split('_')
+        base_type = parts[0]
+        end_type = parts[1] if len(parts) > 1 else ""
+
+        bin_width = 0.5
+        
+        results_df_plot = sim_results[sim_results['splitting_type'] == base_type].copy()
+
+        cover_plot = make_subplots(
+            rows=5, cols=2, 
+            subplot_titles=[f'Depth = {d}' for d in tree_depth],
+            vertical_spacing=0.075,
+            horizontal_spacing=0.05,
+            shared_yaxes="rows",
+        )
+
+        for i, depth in enumerate(tree_depth):
+
+            results_df_plot_depth = results_df_plot[results_df_plot['depth'] == depth].copy()
+
+            if end_type in ["", "0"]:
+                filtered_depth_df = results_df_plot_depth.copy()
+            elif end_type == "nan":
+                filtered_depth_df = results_df_plot_depth[~results_df_plot_depth['coverage'].isna()].copy()
+            else:
+                filtered_depth_df = results_df_plot_depth.copy() # Fallback
+
+            min_val = filtered_depth_df['n_samples'].min()
+            max_val = filtered_depth_df['n_samples'].max()
+
+            print(f"Depth {depth}: min samples = {min_val}, max samples = {max_val}")
+
+            bin_edges = np.arange(min_val, max_val + bin_width, bin_width)
+
+            filtered_depth_df["bin_interval"] = pd.cut(filtered_depth_df['n_samples'], bins=bin_edges, include_lowest=True)
+
+            filtered_depth_df["bin_center"] = filtered_depth_df["bin_interval"].apply(lambda x: x.mid)
+
+            samples_counts = filtered_depth_df.groupby(["depth", "bin_center"], observed=True).size().reset_index(name='samples_count')
+
+            avg_splits_per_depth = filtered_depth_df.groupby(["depth"], observed=True).size().reset_index(name='total_samples')
+
+            samples_counts['total_samples_per_depth'] = samples_counts['depth'].map(avg_splits_per_depth.set_index('depth')['total_samples'])
+
+            samples_counts['sample_count_share'] = samples_counts['samples_count'] / samples_counts['total_samples_per_depth']
+
+            depth_data = samples_counts[samples_counts['depth'] == depth]
+
+            row = (i // 2) + 1
+            col = (i % 2) + 1
+
+            cover_plot.add_trace(
+                go.Scatter(
+                    x=depth_data['bin_center'], 
+                    y=depth_data['sample_count_share'], 
+                    mode='lines',
+                    name="sample_count_share",
+                    line=dict(color='#1f77b4'),
+                    showlegend=False
+                ),
+                row=row, col=col
+            )
+
+            cover_plot.update_xaxes(range=[min_val, max_val],
+                                    row=row, 
+                                    col=col)
+            
+        cover_plot.update_xaxes(title_text="number of samples per leaf", row=5)
+
+        if end_type == "":          
+            cover_plot.update_layout(
+                height=1500,
+                width=1000,
+                title_text=f"Relative frequency distribution of the number of samples per leaf for <i>n</i> = {sample_size}<br>and adaptive estimation (bin width={bin_width})"
+            )
+
+        elif end_type == "nan":          
+            cover_plot.update_layout(
+                height=1500,
+                width=1000,
+                title_text=f"Relative frequency distribution of the number of samples per leaf for <i>n</i> = {sample_size}<br>and honest estimation with nan coverages not included (bin width={bin_width})"
+            )
+
+        elif end_type == "0":          
+            cover_plot.update_layout(
+                height=1500,
+                width=1000,
+                title_text=f"Relative frequency distribution of the number of samples per leaf for <i>n</i> = {sample_size}<br>and honest estimation with nan coverages included (bin width={bin_width})"
+            )
+
+        html_path = str(PLOTS_DIR / f"plot_{sample_size}_n_samples_distribution_{splitting_type}.html")
+
+        cover_plot.write_html(html_path)
+
+        cover_plot.show()
 

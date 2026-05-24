@@ -1,21 +1,21 @@
 import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
-from src.data_generation import constant_dgp, heterogeneous_dgp
-from src.causalml_estimation import CausalTreeEvaluation
+from .data_generation import constant_dgp
+from .causalml_estimation import CausalTreeEvaluation
 
 class SimulationRunner:
-    """Class to run simulations for a given DGP and estimator in parallel."""
+    """Class to run simulations in parallel."""
     
     def __init__(
         self, 
-        dgp: constant_dgp | heterogeneous_dgp,
+        dgp: constant_dgp,
         estimator: CausalTreeEvaluation,
     ) -> None:
         self.dgp = dgp
         self.estimator = estimator
 
-    def _run_single_simulation(self, sim_idx: int, seed: int, n_obs: int, dgp_args: dict, splitting: str) -> pd.DataFrame:
+    def _run_single_simulation(self, sim_idx: int, seed: int, n_obs: int, splitting: str) -> pd.DataFrame:
 
         if (sim_idx + 1) % 2000 == 0:
             print(f"Completed {sim_idx + 1} simulations...", flush=True)
@@ -25,7 +25,6 @@ class SimulationRunner:
         X_sim, Y_sim, T_sim, treatment_effect = self.dgp.sample(
             n_obs=n_obs, 
             seed=sim_seed, 
-            **dgp_args
         )
 
         if splitting == "honest":
@@ -52,17 +51,9 @@ class SimulationRunner:
         n_obs: int, 
         seed: int, 
         splitting: str, 
-        distribution: str, 
-        outcome_mechanism: str,
-        treatment_mechanism: str = None,
         n_jobs: int = -1
     ) -> pd.DataFrame:
         
-        dgp_args = {
-            "distribution": distribution,
-            "outcome_mechanism": outcome_mechanism,
-            "treatment_mechanism": treatment_mechanism
-        }
 
         print(f"Starting {n_simulations} {splitting} simulations using {n_jobs} cores...")
         
@@ -72,7 +63,6 @@ class SimulationRunner:
                 sim_idx=sim, 
                 seed=seed, 
                 n_obs=n_obs, 
-                dgp_args=dgp_args,
                 splitting=splitting
             ) 
             for sim in range(n_simulations)

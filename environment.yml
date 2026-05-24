@@ -1,0 +1,14 @@
+name: master_thesis_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13
+  - pip
+  - numpy=2.4.5
+  - pandas=3.0.3
+  - scikit-learn=1.8.0
+  - joblib=1.4.2
+  - plotly=6.6.0
+  - pip:
+    - ./causalml
