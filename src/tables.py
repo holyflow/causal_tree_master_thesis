@@ -39,6 +39,9 @@ def coverage_table(results_df: pd.DataFrame, sample_size: int):
 
 def leaf_size_table(sim_results: pd.DataFrame, sample_size: int):
     """Generates a table of mean leaf sizes by depth and splitting type"""
+
+    sim_results = sim_results.copy()
+    sim_results['coverage'] = sim_results['coverage'].astype('Int64')
     
     tree_depth = TREE_DEPTHS[sample_size]
     
@@ -80,7 +83,7 @@ def leaf_size_table(sim_results: pd.DataFrame, sample_size: int):
     df_extreme_part2 = df_extreme[df_extreme.index.get_level_values("Abs. Deviation Interval").isin(intervals_part2)]
     df_extreme_part3 = df_extreme[df_extreme.index.get_level_values("Abs. Deviation Interval").isin(intervals_part3)]
 
-    df_overall.style.format(precision=2, na_rep="--").to_latex(
+    df_overall.style.format(precision=2, na_rep="--").format_index(na_rep="NaN").to_latex(
         rf"{TABLES_DIR}\{sample_size}_overall_table.tex",
         position="htbp",
         position_float="centering",
@@ -91,7 +94,7 @@ def leaf_size_table(sim_results: pd.DataFrame, sample_size: int):
         clines="skip-last;data"
     )
 
-    df_extreme_part1.style.format(precision=2, na_rep="--").to_latex(
+    df_extreme_part1.style.format(precision=2, na_rep="--").format_index(na_rep="NaN").to_latex(
         rf"{TABLES_DIR}\{sample_size}_extreme_table_part1.tex",
         position="htbp",
         position_float="centering",
@@ -102,7 +105,7 @@ def leaf_size_table(sim_results: pd.DataFrame, sample_size: int):
         clines="skip-last;data"
     )
 
-    df_extreme_part2.style.format(precision=2, na_rep="--").to_latex(
+    df_extreme_part2.style.format(precision=2, na_rep="--").format_index(na_rep="NaN").to_latex(
         rf"{TABLES_DIR}\{sample_size}_extreme_table_part2.tex",
         position="htbp",
         position_float="centering",
@@ -113,7 +116,7 @@ def leaf_size_table(sim_results: pd.DataFrame, sample_size: int):
         clines="skip-last;data"
     )
 
-    df_extreme_part3.style.format(precision=2, na_rep="--").to_latex(
+    df_extreme_part3.style.format(precision=2, na_rep="--").format_index(na_rep="NaN").to_latex(
         rf"{TABLES_DIR}\{sample_size}_extreme_table_part3.tex",
         position="htbp",
         position_float="centering",
